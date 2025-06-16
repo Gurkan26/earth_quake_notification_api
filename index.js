@@ -50,11 +50,17 @@ cron.schedule('* * * * *', async () => {
       }
 
       const message = {
-        notification: {
-          title: '⚠️ Deprem Uyarısı',
-          body: `${eq.properties.place} - ${eq.properties.mag} büyüklüğünde deprem oldu.`,
-        }
-      };
+  notification: {
+    title: '⚠️ Deprem Uyarısı',
+    body: `${eq.properties.place} - ${eq.properties.mag} büyüklüğünde deprem.`,
+  },
+  android: {
+    notification: {
+      sound: 'alert_sound', // dikkat: uzantısız olacak!
+    },
+  },
+  tokens: tokens,
+};
 
       const fcmResponse = await admin.messaging().sendMulticast({
         tokens: tokens,
