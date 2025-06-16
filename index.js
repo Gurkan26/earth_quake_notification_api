@@ -1,32 +1,72 @@
 const express = require('express');
-const axios = require('axios');
-const { sendNotificationToAll } = require('./sendNotification');
+const fetch = require('node-fetch');
+const cron = require('node-cron');
+const admin = require("firebase-admin");
+const serviceAccount = require("./serviceAccountKey.json");
+require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.get('/', async (req, res) => {
-  const url = 'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=now-1minutes&minmagnitude=4.5&latitude=41.0&longitude=29.0&maxradiuskm=250';
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
-  try {
-    const response = await axios.get(url);
-    const earthquakes = response.data.features;
+const tokens = [];
 
-    if (earthquakes.length > 0) {
-      const latest = earthquakes[0];
-      const title = '⚠️ Deprem Uyarısı';
-      const body = `${latest.properties.place} - M${latest.properties.mag}`;
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
-      await sendNotificationToAll(title, body);
-    }
+app.get('/', (req, res) => {
+  res.send('Deprem API çalışıyor!');
+});
 
-    res.send('Kontrol tamam.');
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('Hata oluştu.');
+app.post('/register-token', (req, res) => {
+  const token = req.body.token;
+  if (token && !tokens.includes(token)) {
+    tokens.push(token);
+    console.log('✅ Yeni token kaydedildi:', token);
+    res.status(200).send('Token başarıyla kaydedildi.');
+  } else {
+    res.status(400).send('Token zaten kayıtlı veya geçersiz.');
   }
 });
 
-const PORT = process.env.PORT || 3000;
+// Her 1 dakikada bir deprem kontrolü
+cron.schedule('* * * * *', async () => {
+  console.log('🔍 Deprem kontrol ediliyor...');
+
+  try {
+    const response = await fetch('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=now-1minute&minmagnitude=4.5');
+    const data = await response.json();
+
+    if (data.features && data.features.length > 0) {
+      const eq = data.features[0];
+      console.log(`⚠️ Deprem: ${eq.properties.place} - ${eq.properties.mag}`);
+
+      if (tokens.length === 0) {
+        console.log('🚫 Bildirim gönderilecek kullanıcı yok.');
+        return;
+      }
+
+      const message = {
+        notification: {
+          title: '⚠️ Deprem Uyarısı',
+          body: `${eq.properties.place} - ${eq.properties.mag} büyüklüğünde deprem oldu.`,
+        },
+        tokens: tokens,
+      };
+
+      const response = await admin.messaging().sendMulticast(message);
+      console.log(`📤 ${response.successCount} kişiye bildirim gönderildi.`);
+    } else {
+      console.log('📭 Yeni deprem yok.');
+    }
+  } catch (e) {
+    console.error('Hata:', e);
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`API aktif: http://localhost:${PORT}`);
+  console.log(`🌍 Server ${PORT} portunda çalışıyor.`);
 });
