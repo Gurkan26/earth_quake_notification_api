@@ -2,7 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const cron = require('node-cron');
 const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
+const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 require('dotenv').config();
 
 const app = express();
