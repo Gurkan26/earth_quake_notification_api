@@ -53,12 +53,15 @@ cron.schedule('* * * * *', async () => {
         notification: {
           title: '⚠️ Deprem Uyarısı',
           body: `${eq.properties.place} - ${eq.properties.mag} büyüklüğünde deprem oldu.`,
-        },
-        tokens: tokens,
+        }
       };
 
-      const response = await admin.messaging().sendMulticast(message);
-      console.log(`📤 ${response.successCount} kişiye bildirim gönderildi.`);
+      const fcmResponse = await admin.messaging().sendMulticast({
+        tokens: tokens,
+        ...message
+      });
+
+      console.log(`📤 ${fcmResponse.successCount} kişiye bildirim gönderildi.`);
     } else {
       console.log('📭 Yeni deprem yok.');
     }
